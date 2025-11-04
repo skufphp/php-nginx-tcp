@@ -1,0 +1,6 @@
+services:
+  php-nginx-tcp:
+    environment:
+      XDEBUG_MODE: "debug"
+      XDEBUG_START: "yes"
+      XDEBUG_CLIENT_HOST: "${XDEBUG_CLIENT_HOST:-host.docker.internal}"
