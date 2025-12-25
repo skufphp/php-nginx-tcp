@@ -46,7 +46,7 @@ check-files: ## Проверить наличие всех необходимы�
 
 up: check-files ## Запуск всех сервисов
 	@echo "$(YELLOW)Запуск сервисов...$(NC)"
-	docker-compose up -d
+	docker compose up -d
 	@echo "$(GREEN)✓ Сервисы запущены$(NC)"
 	@echo "$(YELLOW)Доступные URL:$(NC)"
 	@echo "  Web Server:  http://localhost"
@@ -54,27 +54,27 @@ up: check-files ## Запуск всех сервисов
 
 down: ## Остановка всех сервисов
 	@echo "$(YELLOW)Остановка сервисов...$(NC)"
-	docker-compose down
+	docker compose down
 	@echo "$(GREEN)✓ Сервисы остановлены$(NC)"
 
 restart: ## Перезапуск всех сервисов
 	@echo "$(YELLOW)Перезапуск сервисов...$(NC)"
-	docker-compose restart
+	docker compose restart
 	@echo "$(GREEN)✓ Сервисы перезапущены$(NC)"
 
 build: ## Сборка образов
 	@echo "$(YELLOW)Сборка образов...$(NC)"
-	docker-compose build
+	docker compose build
 	@echo "$(GREEN)✓ Образы собраны$(NC)"
 
 rebuild: ## Пересборка образов с очисткой кэша
 	@echo "$(YELLOW)Пересборка образов...$(NC)"
-	docker-compose build --no-cache
+	docker compose build --no-cache
 	@echo "$(GREEN)✓ Образы пересобраны$(NC)"
 
 xdebug-up: check-files ## Запуск с включенным Xdebug (через docker-compose.xdebug.yml)
 	@echo "$(YELLOW)Запуск с Xdebug...$(NC)"
-	docker-compose -f docker-compose.yml -f docker-compose.xdebug.yml up -d
+	docker compose -f docker-compose.yml -f docker-compose.xdebug.yml up -d
 	@echo "$(GREEN)✓ Сервисы с Xdebug запущены$(NC)"
 	@echo "$(YELLOW)Доступные URL:$(NC)"
 	@echo "  Web Server:  http://localhost"
@@ -82,36 +82,36 @@ xdebug-up: check-files ## Запуск с включенным Xdebug (чере�
 
 xdebug-down: ## Остановить стек, запущенный с Xdebug
 	@echo "$(YELLOW)Остановка сервисов с Xdebug...$(NC)"
-	docker-compose -f docker-compose.yml -f docker-compose.xdebug.yml down
+	docker compose -f docker-compose.yml -f docker-compose.xdebug.yml down
 	@echo "$(GREEN)✓ Сервисы с Xdebug остановлены$(NC)"
 
 logs: ## Просмотр логов всех сервисов
-	docker-compose logs -f
+	docker compose logs -f
 
 logs-php: ## Просмотр логов PHP-FPM
-	docker-compose logs -f php-nginx-tcp
+	docker compose logs -f php-nginx-tcp
 
 logs-nginx: ## Просмотр логов Nginx
-	docker-compose logs -f nginx-tcp
+	docker compose logs -f nginx-tcp
 
 logs-postgres: ## Просмотр логов PostgreSQL
-	docker-compose logs -f postgres-nginx-tcp
+	docker compose logs -f postgres-nginx-tcp
 
 logs-pgadmin: ## Просмотр логов pgAdmin
-	docker-compose logs -f pgadmin-nginx-tcp
+	docker compose logs -f pgadmin-nginx-tcp
 
 status: ## Показать статус контейнеров
 	@echo "$(YELLOW)Статус контейнеров:$(NC)"
-	@docker-compose ps
+	@docker compose ps
 
 shell-php: ## Подключиться к контейнеру PHP
-	docker-compose exec php-nginx-tcp sh
+	docker compose exec php-nginx-tcp sh
 
 shell-nginx: ## Подключиться к контейнеру Nginx
-	docker-compose exec nginx-tcp sh
+	docker compose exec nginx-tcp sh
 
 shell-postgres: ## Подключиться к PostgreSQL CLI
-	docker-compose exec postgres-nginx-tcp psql -U $$POSTGRES_USER -d $$POSTGRES_DB
+	docker compose exec postgres-nginx-tcp psql -U $$POSTGRES_USER -d $$POSTGRES_DB
 
 info: ## Показать информацию о проекте
 	@echo "$(YELLOW)PHP-Nginx-TCP Development Environment$(NC)"
@@ -141,17 +141,17 @@ test: ## Проверить работу сервисов
 	@echo -n "pgAdmin (http://localhost:8080): "
 	@curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 && echo " $(GREEN)✓$(NC)" || echo " $(RED)✗$(NC)"
 	@echo "$(YELLOW)Статус контейнеров:$(NC)"
-	@docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
 
 clean: ## Остановка и удаление контейнеров
 	@echo "$(YELLOW)Очистка контейнеров...$(NC)"
-	docker-compose down -v
+	docker compose down -v
 	@echo "$(GREEN)✓ Контейнеры и тома удалены$(NC)"
 
 clean-all: ## Полная очистка (контейнеры, образы, тома)
 	@echo "$(YELLOW)Полная очистка...$(NC)"
-	docker-compose down -v
-	docker-compose down --rmi all
+	docker compose down -v
+	docker compose down --rmi all
 	@echo "$(GREEN)✓ Выполнена полная очистка$(NC)"
 
 dev-reset: clean-all build up ## Сброс среды разработки
@@ -165,13 +165,13 @@ permissions: ## Исправить права доступа к файлам п�
 
 # Composer команды
 composer-install: ## Установить зависимости через Composer
-	docker-compose exec php-nginx-tcp composer install
+	docker compose exec php-nginx-tcp composer install
 
 composer-update: ## Обновить зависимости через Composer
-	docker-compose exec php-nginx-tcp composer update
+	docker compose exec php-nginx-tcp composer update
 
 composer-require: ## Установить пакет через Composer (make composer-require PACKAGE=vendor/package)
-	docker-compose exec php-nginx-tcp composer require $(PACKAGE)
+	docker compose exec php-nginx-tcp composer require $(PACKAGE)
 
 # Команда по умолчанию
 .DEFAULT_GOAL := help
