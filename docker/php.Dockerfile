@@ -40,4 +40,4 @@ WORKDIR /var/www/html
 EXPOSE 9000
 
 # Запуск PHP-FPM
-CMD ["php-fpm"]
+CMD ["php-fpm", "-F"]
