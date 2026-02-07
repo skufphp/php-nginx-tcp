@@ -1,3 +1,5 @@
 <?php
-// Простая страница phpinfo() для отладки
+
+declare(strict_types=1);
+
 phpinfo();

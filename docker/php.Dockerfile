@@ -1,6 +1,6 @@
 FROM php:8.4-fpm-alpine
 
-# Установка необходимых пакетов и PHP-расширений для PostgreSQL и общих библиотек
+# Устанавливаем нужные пакеты
 RUN apk add --no-cache \
     curl \
     $PHPIZE_DEPS \
@@ -15,14 +15,13 @@ RUN apk add --no-cache \
     libzip-dev \
     linux-headers \
     fcgi \
-    postgresql-dev \
     && pecl channel-update pecl.php.net \
     && pecl install xdebug \
     && docker-php-ext-enable xdebug \
     && docker-php-ext-install \
     pdo \
-    pdo_pgsql \
-    pgsql \
+    pdo_mysql \
+    mysqli \
     mbstring \
     xml \
     gd \
@@ -30,14 +29,15 @@ RUN apk add --no-cache \
     zip \
     && apk del $PHPIZE_DEPS
 
-# Composer (копируем бинарник Composer в образ)
+# Устанавливаем Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Рабочая директория (workdir)
+# Устанавливаем рабочую директорию
 WORKDIR /var/www/html
+RUN chown -R www-data:www-data /var/www/html
 
-# Открываем порт FPM по TCP (только внутри сети Docker)
+# Экспонируем порт
 EXPOSE 9000
 
-# Запуск PHP-FPM
+# Запускаем PHP-FPM
 CMD ["php-fpm", "-F"]

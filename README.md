@@ -7,16 +7,16 @@
 ## Что внутри (архитектура)
 
 Сервисы docker-compose.yml:
-- PHP-FPM 8.4 (контейнер php-nginx-tcp) — выполняет PHP, слушает TCP:9000, Xdebug установлен, управляется переменными окружения.
-- Nginx (контейнер nginx-tcp) — отдаёт статику и проксирует .php в PHP-FPM по TCP (fastcgi_pass php-nginx-tcp:9000); доступен на http://localhost:80.
-- PostgreSQL 17 (контейнер postgres-nginx-tcp) — база данных на localhost:5432, данные в именованном томе postgres-data.
-- pgAdmin 4 (контейнер pgadmin) — веб-интерфейс PostgreSQL на http://localhost:8080.
+- PHP-FPM 8.4 (контейнер php-nginx-tcp) — выполняет PHP, порт 9000 (внутренний), Xdebug установлен, управляется переменными окружения.
+- Nginx (контейнер nginx-tcp) — отдаёт статику и проксирует .php в PHP-FPM; доступен на http://localhost:80.
+- MySQL 8.4 (контейнер mysql-nginx-tcp) — база данных на localhost:3306, данные в именованном томе mysql-data.
+- phpMyAdmin (контейнер phpmyadmin-nginx-tcp) — веб-интерфейс MySQL на http://localhost:8080.
 
 Здоровье (healthchecks):
-- PHP-FPM — проверка fastcgi по TCP (cgi-fcgi -bind -connect localhost:9000).
+- PHP-FPM — проверка fastcgi (cgi-fcgi -connect localhost:9000).
 - Nginx — HTTP-запрос к http://localhost/.
-- PostgreSQL — pg_isready.
-- pgAdmin — HTTP-запрос к http://localhost:8080/.
+- MySQL — mysqladmin ping.
+- phpMyAdmin — HTTP-запрос к http://localhost/.
 
 Порядок старта: nginx-tcp ожидает, когда php-nginx-tcp станет healthy.
 
@@ -26,24 +26,25 @@
 php-nginx-tcp/
 ├── Makefile
 ├── README.md
-├── config/
-│   ├── nginx/
-│   │   └── conf.d/default.conf # Конфиг Nginx (проксирование в PHP-FPM по TCP:9000)
-│   └── php/
-│       └── php.ini             # Конфиг PHP (dev-настройки + Xdebug через env)
+├── .env.example
+├── .env                        # Ваши локальные переменные окружения
 ├── docker/
+│   ├── nginx/
+│   │   ├── nginx.conf          # Конфиг Nginx (проксирование в PHP-FPM)
+│   │   ├── nginx.framework.conf # Альтернативный конфиг (Single Entry Point)
+│   │   └── nginx.fastcgi.conf  # Конфиг проксирования (FastCGI)
+│   ├── php/
+│   │   └── php.ini             # Конфиг PHP (dev-настройки + Xdebug через env)
 │   └── php.Dockerfile          # Образ PHP-FPM 8.4 (Alpine) + расширения + Xdebug + Composer
-├── docker-compose.yml          # Основной стек: PHP-FPM (TCP:9000), Nginx (fastcgi), PostgreSQL, pgAdmin
+├── docker-compose.yml          # Основной стек: PHP-FPM, Nginx, MySQL, phpMyAdmin
 ├── docker-compose.xdebug.yml   # Оверлей для включения Xdebug (mode=start)
-├── env/
-│   └── .env.example            # Пример переменных окружения (скопируйте в env/.env)
-└── public/                     # DocumentRoot (монтируется в Nginx и PHP-FPM)
+└── public/                     # DocumentRoot (будет смонтирован в Nginx и PHP-FPM)
     ├── index.html
     ├── index.php
     └── phpinfo.php
 ```
 
-Обратите внимание: папки src/ и logs/ отсутствуют. Для обучения достаточно размещать PHP-файлы в public/.
+Обратите внимание: папки src/ и logs/ в данном репозитории отсутствуют. Для обучения достаточно размещать PHP-файлы в public/.
 
 ## Быстрый старт
 
@@ -54,14 +55,14 @@ php-nginx-tcp/
 Шаги:
 1) Клонируйте репозиторий и перейдите в каталог проекта.
 2) Скопируйте пример env:
-   - mkdir -p env && cp env/.env.example env/.env
+   - cp .env.example .env
    - при необходимости отредактируйте пароли/имена БД.
 3) Запустите стек:
    - make up (или docker compose up -d)
 4) Проверьте доступность:
    - Web: http://localhost
-   - pgAdmin: http://localhost:8080 (сервер postgres-nginx-tcp)
-   - PostgreSQL: localhost:5432
+   - phpMyAdmin: http://localhost:8080 (сервер mysql-nginx-tcp)
+   - MySQL: localhost:3306
 
 Полезные команды Makefile:
 - make up / make down / make restart — управление стеком
@@ -71,35 +72,32 @@ php-nginx-tcp/
 
 ## Конфигурация
 
-PHP (config/php/php.ini):
+PHP (docker/php/php.ini):
 - error_reporting=E_ALL, display_errors=On — удобно учиться на ошибках
 - memory_limit=256M, upload_max_filesize=20M, post_max_size=20M
 - opcache включён, validate_timestamps=1 (код обновляется сразу)
 - Xdebug управляется через переменные окружения (см. ниже)
 
-Nginx (config/nginx/conf.d/default.conf):
-- Отдаёт статику из /var/www/html.
-- Проксирует .php в PHP-FPM по TCP: fastcgi_pass php-nginx-tcp:9000.
-- index включает index.php; корректные fastcgi_param для SCRIPT_FILENAME и DOCUMENT_ROOT.
-- client_max_body_size согласуйте с upload_max_filesize/post_max_size.
+Nginx (docker/nginx/nginx.conf):
+- FastCGI проксирует .php в php-nginx-tcp:9000
+- try_files для обработки статики и PHP
+
+Альтернативные конфиги Nginx (docker/nginx/):
+- nginx.framework.conf — режим Single Entry Point для фреймворков
+- nginx.fastcgi.conf — настройки FastCGI параметров
 
 Docker-образ PHP (docker/php.Dockerfile):
-- База: php:8.4-fpm-alpine.
-- Установлены расширения: pdo, pdo_pgsql, pgsql, mbstring, xml, gd, bcmath, zip.
-- Установлен Xdebug (через pecl), Composer, fcgi (для healthcheck).
-- PHP-FPM слушает TCP:9000; порт не публикуется наружу, используется только внутри сети Docker.
+- База: php:8.4-fpm-alpine
+- Установлены расширения: pdo, pdo_mysql, mysqli, mbstring, xml, gd, bcmath, zip
+- Установлен Xdebug (через pecl), Composer, fcgi (для healthcheck)
 
-Работа по TCP:9000 между Nginx и PHP-FPM:
-- Общие тома для сокета не нужны; связь по сети в одной docker-сети.
+## Переменные окружения (.env)
 
-## Переменные окружения (env/.env)
-
-Минимальный набор (см. env/.env.example):
-- POSTGRES_USER — имя пользователя PostgreSQL
-- POSTGRES_PASSWORD — пароль пользователя
-- POSTGRES_DB — имя создаваемой БД
-- PGADMIN_DEFAULT_EMAIL, PGADMIN_DEFAULT_PASSWORD — учётка для входа в pgAdmin
-- Переменные Xdebug (см. ниже)
+Минимальный набор (см. .env.example):
+- MYSQL_ROOT_PASSWORD — пароль root для MySQL
+- PMA_HOST=mysql-nginx-tcp — хост БД для phpMyAdmin
+- NGINX_PORT, MYSQL_PORT, PHPMYADMIN_PORT — порты сервисов
+- XDEBUG_MODE, XDEBUG_START, XDEBUG_CLIENT_HOST — опционально для Xdebug
 
 ## Xdebug: как включить
 
@@ -110,9 +108,10 @@ Docker-образ PHP (docker/php.Dockerfile):
   (эквивалент docker compose -f docker-compose.yml -f docker-compose.xdebug.yml up -d)
 - Внутри php.ini используются переменные XDEBUG_MODE=debug и XDEBUG_START=yes.
 
-Вариант B: задать переменные в env/.env и перезапустить php-контейнер
+Вариант B: задать переменные в .env и перезапустить php-контейнер
 - XDEBUG_MODE=debug
 - XDEBUG_START=yes
+- XDEBUG_CLIENT_HOST=host.docker.internal
 - затем docker compose up -d --no-deps php-nginx-tcp
 
 IDE: подключение по Xdebug 3 на порт 9003, client_host=host.docker.internal.
@@ -120,41 +119,33 @@ IDE: подключение по Xdebug 3 на порт 9003, client_host=host.d
 ## Рабочие директории и монтирование
 
 - public/ монтируется в /var/www/html одновременно в PHP-FPM и Nginx — любые изменения видны сразу.
-- config/php/php.ini монтируется в /usr/local/etc/php/conf.d/local.ini (только чтение).
-- Для PostgreSQL используется именованный том postgres-data (персистентные данные).
+- docker/php/php.ini монтируется в /usr/local/etc/php/conf.d/local.ini (только чтение).
+- Для MySQL используется именованный том mysql-data (персистентные данные).
 
-## Подключение к PostgreSQL из PHP (пример)
+## Подключение к MySQL из PHP (пример)
 
-```php
+```
 <?php
-$host = 'postgres-nginx-tcp';
-$port = 5432;
+$host = 'mysql-nginx-tcp';
 $dbname = 'your-db-name';
 $user = 'your-user';
 $pass = 'your-user-password';
-
-$dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
-$pdo = new PDO($dsn, $user, $pass, [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-]);
+$pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass);
 ```
 
 ## Решение проблем
 
-502/404 на .php:
-- Проверьте fastcgi_param SCRIPT_FILENAME ($document_root$fastcgi_script_name) и совпадение путей в Nginx и PHP-FPM.
-
-Ограничения загрузки файлов:
-- client_max_body_size (Nginx) должен быть согласован с upload_max_filesize и post_max_size (PHP).
-
 Порты заняты:
-- Измените привязку в docker-compose.yml, например 8081:80 для Nginx, 5433:5432 для PostgreSQL.
+- Измените привязку в docker-compose.yml, например 8081:80 для Nginx.
 
 Контейнеры не стартуют по порядку:
 - Проверьте healthchecks командой docker compose ps; nginx-tcp зависит от healthy php-nginx-tcp.
 
 Xdebug не подключается:
-- Проверьте, что используете порт 9003 в IDE, и что XDEBUG_MODE/START заданы (compose.xdebug.yml или env/.env).
+- Проверьте, что используете порт 9003 в IDE, и что XDEBUG_MODE/START заданы (compose.xdebug.yml или .env).
+
+Полная очистка и пересборка:
+- make clean или make clean-all; затем make rebuild и make up.
 
 ## Дисклеймер
 

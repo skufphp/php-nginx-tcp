@@ -1,5 +1,5 @@
 # ==========================================
-# PHP-Nginx-TCP — среда разработки
+# Среда разработки PHP-Nginx-TCP
 # ==========================================
 # Современная замена XAMPP/MAMP/OpenServer
 # 
@@ -12,13 +12,19 @@
 # make clean     - Полная очистка
 # ==========================================
 
-.PHONY: help up down restart build rebuild logs logs-php logs-nginx logs-postgres logs-pgadmin status shell-php shell-nginx shell-postgres clean clean-all setup info test check-files xdebug-up xdebug-down permissions composer-install composer-update composer-require dev-reset
+.PHONY: help up down restart build rebuild logs logs-php logs-nginx logs-mysql logs-phpmyadmin status shell-php shell-nginx shell-mysql clean clean-all setup info test check-files xdebug-up xdebug-down permissions composer-install composer-update composer-require dev-reset
 
 # Цвета для вывода
 YELLOW=\033[0;33m
 GREEN=\033[0;32m
 RED=\033[0;31m
-NC=\033[0m # No Color
+NC=\033[0m # Без цвета
+
+# Сервисы
+PHP_CONTAINER=php-nginx-tcp
+NGINX_CONTAINER=nginx-tcp
+MYSQL_CONTAINER=mysql-nginx-tcp
+PHPMYADMIN_CONTAINER=phpmyadmin-nginx-tcp
 
 # По умолчанию показываем справку
 help: ## Показать справку по командам
@@ -30,17 +36,16 @@ help: ## Показать справку по командам
 	@echo ""
 	@echo "$(YELLOW)URL сервисов после запуска:$(NC)"
 	@echo "  Web Server:  http://localhost"
-	@echo "  pgAdmin:     http://localhost:8080"
-	@echo "  PostgreSQL:  localhost:5432"
+	@echo "  phpMyAdmin:  http://localhost:8080"
+	@echo "  MySQL:       localhost:3306"
 
 check-files: ## Проверить наличие всех необходимых файлов
 	@echo "$(YELLOW)Проверка файлов конфигурации...$(NC)"
 	@test -f docker-compose.yml || (echo "$(RED)✗ docker-compose.yml не найден$(NC)" && exit 1)
 	@test -f docker-compose.xdebug.yml || (echo "$(RED)✗ docker-compose.xdebug.yml не найден$(NC)" && exit 1)
-	@test -f env/.env || (echo "$(RED)✗ env/.env не найден$(NC)" && exit 1)
 	@test -f docker/php.Dockerfile || (echo "$(RED)✗ docker/php.Dockerfile не найден$(NC)" && exit 1)
-	@test -f config/nginx/conf.d/default.conf || (echo "$(RED)✗ config/nginx/conf.d/default.conf не найден$(NC)" && exit 1)
-	@test -f config/php/php.ini || (echo "$(RED)✗ config/php/php.ini не найден$(NC)" && exit 1)
+	@test -f docker/nginx/nginx.conf || (echo "$(RED)✗ docker/nginx/nginx.conf не найден$(NC)" && exit 1)
+	@test -f docker/php/php.ini || (echo "$(RED)✗ docker/php/php.ini не найден$(NC)" && exit 1)
 	@test -d public/ || (echo "$(RED)✗ директория public/ не найдена$(NC)" && exit 1)
 	@echo "$(GREEN)✓ Все файлы на месте$(NC)"
 
@@ -50,7 +55,7 @@ up: check-files ## Запуск всех сервисов
 	@echo "$(GREEN)✓ Сервисы запущены$(NC)"
 	@echo "$(YELLOW)Доступные URL:$(NC)"
 	@echo "  Web Server:  http://localhost"
-	@echo "  pgAdmin:     http://localhost:8080"
+	@echo "  phpMyAdmin:  http://localhost:8080"
 
 down: ## Остановка всех сервисов
 	@echo "$(YELLOW)Остановка сервисов...$(NC)"
@@ -78,7 +83,7 @@ xdebug-up: check-files ## Запуск с включенным Xdebug (чере�
 	@echo "$(GREEN)✓ Сервисы с Xdebug запущены$(NC)"
 	@echo "$(YELLOW)Доступные URL:$(NC)"
 	@echo "  Web Server:  http://localhost"
-	@echo "  pgAdmin:     http://localhost:8080"
+	@echo "  phpMyAdmin:  http://localhost:8080"
 
 xdebug-down: ## Остановить стек, запущенный с Xdebug
 	@echo "$(YELLOW)Остановка сервисов с Xdebug...$(NC)"
@@ -89,29 +94,30 @@ logs: ## Просмотр логов всех сервисов
 	docker compose logs -f
 
 logs-php: ## Просмотр логов PHP-FPM
-	docker compose logs -f php-nginx-tcp
+	docker compose logs -f $(PHP_CONTAINER)
 
 logs-nginx: ## Просмотр логов Nginx
-	docker compose logs -f nginx-tcp
+	docker compose logs -f $(NGINX_CONTAINER)
 
-logs-postgres: ## Просмотр логов PostgreSQL
-	docker compose logs -f postgres-nginx-tcp
+logs-mysql: ## Просмотр логов MySQL
+	docker compose logs -f $(MYSQL_CONTAINER)
 
-logs-pgadmin: ## Просмотр логов pgAdmin
-	docker compose logs -f pgadmin-nginx-tcp
+logs-phpmyadmin: ## Просмотр логов phpMyAdmin
+	docker compose logs -f $(PHPMYADMIN_CONTAINER)
 
 status: ## Показать статус контейнеров
 	@echo "$(YELLOW)Статус контейнеров:$(NC)"
 	@docker compose ps
 
 shell-php: ## Подключиться к контейнеру PHP
-	docker compose exec php-nginx-tcp sh
+	docker compose exec $(PHP_CONTAINER) sh
 
 shell-nginx: ## Подключиться к контейнеру Nginx
-	docker compose exec nginx-tcp sh
+	docker compose exec $(NGINX_CONTAINER) sh
 
-shell-postgres: ## Подключиться к PostgreSQL CLI
-	docker compose exec postgres-nginx-tcp psql -U $$POSTGRES_USER -d $$POSTGRES_DB
+shell-mysql: ## Подключиться к MySQL CLI
+	@echo "$(YELLOW)Подключение к MySQL...$(NC)"
+	docker compose exec $(MYSQL_CONTAINER) mysql -u root -p
 
 info: ## Показать информацию о проекте
 	@echo "$(YELLOW)PHP-Nginx-TCP Development Environment$(NC)"
@@ -119,26 +125,26 @@ info: ## Показать информацию о проекте
 	@echo "$(GREEN)Сервисы:$(NC)"
 	@echo "  • PHP-FPM 8.4 (Alpine)"
 	@echo "  • Nginx"
-	@echo "  • PostgreSQL 17"
-	@echo "  • pgAdmin 4"
+	@echo "  • MySQL 8.4"
+	@echo "  • phpMyAdmin"
 	@echo ""
 	@echo "$(GREEN)Структура:$(NC)"
 	@echo "  • public/           - публичные файлы (DocumentRoot)"
-	@echo "  • config/nginx/     - конфигурация Nginx"
-	@echo "  • config/php/       - конфигурация PHP (php.ini)"
-	@echo "  • env/.env          - переменные окружения"
+	@echo "  • docker/nginx/    - конфигурация Nginx"
+	@echo "  • docker/php/       - конфигурация PHP (php.ini)"
+	@echo "  • .env          - переменные окружения"
 	@echo ""
 	@echo "$(GREEN)Порты:$(NC)"
 	@echo "  • 80   - Nginx"
-	@echo "  • 5432 - PostgreSQL"
-	@echo "  • 8080 - pgAdmin"
+	@echo "  • 3306 - MySQL Database"
+	@echo "  • 8080 - phpMyAdmin"
 	@echo "  • 9000 - PHP-FPM (внутренний)"
 
 test: ## Проверить работу сервисов
 	@echo "$(YELLOW)Проверка работы сервисов...$(NC)"
 	@echo -n "Nginx (http://localhost): "
 	@curl -s -o /dev/null -w "%{http_code}" http://localhost && echo " $(GREEN)✓$(NC)" || echo " $(RED)✗$(NC)"
-	@echo -n "pgAdmin (http://localhost:8080): "
+	@echo -n "phpMyAdmin (http://localhost:8080): "
 	@curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 && echo " $(GREEN)✓$(NC)" || echo " $(RED)✗$(NC)"
 	@echo "$(YELLOW)Статус контейнеров:$(NC)"
 	@docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
@@ -165,13 +171,13 @@ permissions: ## Исправить права доступа к файлам п�
 
 # Composer команды
 composer-install: ## Установить зависимости через Composer
-	docker compose exec php-nginx-tcp composer install
+	docker compose exec $(PHP_CONTAINER) composer install
 
 composer-update: ## Обновить зависимости через Composer
-	docker compose exec php-nginx-tcp composer update
+	docker compose exec $(PHP_CONTAINER) composer update
 
 composer-require: ## Установить пакет через Composer (make composer-require PACKAGE=vendor/package)
-	docker compose exec php-nginx-tcp composer require $(PACKAGE)
+	docker compose exec $(PHP_CONTAINER) composer require $(PACKAGE)
 
 # Команда по умолчанию
 .DEFAULT_GOAL := help
