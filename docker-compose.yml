@@ -12,7 +12,7 @@ services:
     networks:
       - php-nginx-tcp-network
     healthcheck:
-      test: [ "CMD", "cgi-fcgi", "-bind", "-connect", "localhost:9000" ]
+      test: [ "CMD", "cgi-fcgi", "-bind", "-connect", "php-nginx-tcp:9000" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -60,7 +60,7 @@ services:
       retries: 10
       start_period: 20s
 
-    # phpMyAdmin
+  # phpMyAdmin
   phpmyadmin-nginx-tcp:
     image: phpmyadmin
     container_name: phpmyadmin-nginx-tcp
