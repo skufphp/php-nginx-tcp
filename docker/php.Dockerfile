@@ -1,3 +1,8 @@
+# ==============================================================================
+# Dockerfile для PHP-FPM
+# Базовый образ: PHP 8.4 на Alpine Linux (минималистичный и безопасный)
+# Содержит: Xdebug, расширения для БД (PDO/MySQLi), Composer и утилиты
+# ==============================================================================
 FROM php:8.4-fpm-alpine
 
 # Устанавливаем нужные пакеты
@@ -34,6 +39,8 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Устанавливаем рабочую директорию
 WORKDIR /var/www/html
+
+# Установка прав доступа (PHP-FPM в Alpine по умолчанию работает от www-data)
 RUN chown -R www-data:www-data /var/www/html
 
 # Экспонируем порт
